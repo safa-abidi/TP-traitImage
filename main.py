@@ -95,8 +95,33 @@ def ecart_type(nom):
     elif file_type == "ppm":
         return (et[0] / nb_pixels)**0.5, (et[1] / nb_pixels)**0.5, (et[2] / nb_pixels)**0.5
 
+def histogramme(nom):
+    mat = lire(nom)
+    file_type = nom.split(".")[1]
+    lx = len(mat[0])
+    ly = len(mat)
+    h = [0] * 256
+    for i in range(0, ly):
+        for j in range(0, lx):
+            k = int(mat[i][j])
+            h[k] += 1
+    return h
+
+def histogrammeCumul(nom):
+    hc = [0]*256
+    h = histogramme(nom)
+    hc[0] = h[0]
+    for i in range(1, 256):
+        for j in range(0, i+1):
+            hc[i] += h[j]
+    return hc
+
+
 chat_mat = lire('chat.pgm')
 print(chat_mat)
 ecrire("chat_new.pgm", chat_mat)
 print(moy("chat.pgm"))
 print(ecart_type("chat.pgm"))
+print(histogramme("chat.pgm"))
+print(histogrammeCumul("chat.pgm"))
+
