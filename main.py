@@ -62,18 +62,41 @@ def moy(nom):
     for i in range(0, ly):
         for j in range(0, lx):
             if file_type == "pgm":
-                s[0] += mat[i][j]
+                s[0] += int(mat[i][j])
             elif file_type == "ppm":
-                s[0] += mat[i][j][0]
-                s[1] += mat[i][j][1]
-                s[2] += mat[i][j][2]
+                s[0] += int(mat[i][j][0])
+                s[1] += int(mat[i][j][1])
+                s[2] += int(mat[i][j][2])
     nb_pixels = lx * ly
     if file_type == "pgm":
         return s[0] / nb_pixels
     elif file_type == "ppm":
         return s[0] / nb_pixels, s[1] / nb_pixels, s[2] / nb_pixels
 
+def ecart_type(nom):
+    mat = lire(nom)
+    file_type = nom.split(".")[1]
+    lx = len(mat[0])
+    ly = len(mat)
+    et = list([0, 0, 0])
+    m = moy(nom)
+    print(m)
+    for i in range(0, ly):
+        for j in range(0, lx):
+            if file_type == "pgm":
+                et[0] += (int(mat[i][j]) - m)**2
+            elif file_type == "ppm":
+                et[0] += (int(mat[i][j][0]) - m[0])**2
+                et[1] += (int(mat[i][j][1]) - m[1])**2
+                et[2] += (int(mat[i][j][2]) - m[2])**2
+    nb_pixels = lx * ly
+    if file_type == "pgm":
+        return (et[0] / nb_pixels)**0.5
+    elif file_type == "ppm":
+        return (et[0] / nb_pixels)**0.5, (et[1] / nb_pixels)**0.5, (et[2] / nb_pixels)**0.5
 
 chat_mat = lire('chat.pgm')
 print(chat_mat)
 ecrire("chat_new.pgm", chat_mat)
+print(moy("chat.pgm"))
+print(ecart_type("chat.pgm"))
