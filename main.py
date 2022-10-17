@@ -1,3 +1,11 @@
+def get_params(nom):
+    mat = lire(nom)
+    file_type = nom.split(".")[1]
+    lx = len(mat[0])
+    ly = len(mat)
+    return {'mat': mat, 'file_type': file_type, 'lx': lx, 'ly': ly}
+
+
 def lire(nom):
     file = open(nom, 'r')
     file.seek(0)
@@ -73,6 +81,7 @@ def moy(nom):
     elif file_type == "ppm":
         return s[0] / nb_pixels, s[1] / nb_pixels, s[2] / nb_pixels
 
+
 def ecart_type(nom):
     mat = lire(nom)
     file_type = nom.split(".")[1]
@@ -84,16 +93,17 @@ def ecart_type(nom):
     for i in range(0, ly):
         for j in range(0, lx):
             if file_type == "pgm":
-                et[0] += (int(mat[i][j]) - m)**2
+                et[0] += (int(mat[i][j]) - m) ** 2
             elif file_type == "ppm":
-                et[0] += (int(mat[i][j][0]) - m[0])**2
-                et[1] += (int(mat[i][j][1]) - m[1])**2
-                et[2] += (int(mat[i][j][2]) - m[2])**2
+                et[0] += (int(mat[i][j][0]) - m[0]) ** 2
+                et[1] += (int(mat[i][j][1]) - m[1]) ** 2
+                et[2] += (int(mat[i][j][2]) - m[2]) ** 2
     nb_pixels = lx * ly
     if file_type == "pgm":
-        return (et[0] / nb_pixels)**0.5
+        return (et[0] / nb_pixels) ** 0.5
     elif file_type == "ppm":
-        return (et[0] / nb_pixels)**0.5, (et[1] / nb_pixels)**0.5, (et[2] / nb_pixels)**0.5
+        return (et[0] / nb_pixels) ** 0.5, (et[1] / nb_pixels) ** 0.5, (et[2] / nb_pixels) ** 0.5
+
 
 def histogramme(nom):
     mat = lire(nom)
@@ -107,14 +117,94 @@ def histogramme(nom):
             h[k] += 1
     return h
 
+
 def histogrammeCumul(nom):
-    hc = [0]*256
+    hc = [0] * 256
     h = histogramme(nom)
     hc[0] = h[0]
     for i in range(1, 256):
-        for j in range(0, i+1):
+        for j in range(0, i + 1):
             hc[i] += h[j]
     return hc
+
+
+def probabilities(nom):
+    mat = lire(nom)
+    lx = len(mat[0])
+    ly = len(mat)
+    total = lx * ly
+    h = histogramme(nom)
+    p = [0.0] * 256
+    for i in range(0, 256):
+        p[i] = h[i] / total
+    return p
+
+
+def probabilitiesCumul(nom):
+    p = probabilities(nom)
+    pc = [0.0] * 256
+    pc[0] = p[0]
+    for i in range(1, 256):
+        pc[i] = pc[i - 1] + p[i]
+    return pc
+
+
+def a_(nom):
+    a = [0.0] * 256
+    pc = probabilitiesCumul(nom)
+    for i in range(0, 256):
+        a[i] = 255 * pc[i]
+    return a
+
+
+def n1_(nom):
+    a = a_(nom)
+    n1 = [0] * 256
+    for i in range(0, 256):
+        n1[i] = int(a[i])
+    return n1
+
+
+def histogramme_egalisation(nom):
+    h = histogramme(nom)
+    n1 = n1_(nom)
+    he = [0] * 256
+    j = 0
+    for i in range(0, 256):
+        while j < 256 and n1[j] == i:
+            he[i] += h[j]
+            j += 1
+    return he
+
+
+def transformation_linear(points,nom):
+    x = points[0][0]
+    y = points[0][1]
+    x1 = points[1][0]
+    y1 = points[1][1]
+
+    b = 0
+    a = int(y/x)
+
+    a1 = int((y1-y)/(x1-x))
+    b1 = int(y1 - a1*x1)
+
+    a2 = int((255 - y1)/(255 - x1))
+    b2 = 255 - a2*255
+
+    mat = lire(nom)
+    lx = len(mat[0])
+    ly = len(mat)
+
+    for i in range(0, ly):
+        for j in range(0, lx):
+            if int(mat[i][j]) <= x:
+                mat[i][j] = str(a*int(mat[i][j]) + b)
+            elif int(mat[i][j]) <= x1:
+                mat[i][j] = str(a1*int(mat[i][j]) + b1)
+            else:
+                mat[i][j] = str(a2 * int(mat[i][j]) + b2)
+    return ecrire("chat_transformé.pgm", mat)
 
 
 chat_mat = lire('chat.pgm')
@@ -124,4 +214,9 @@ print(moy("chat.pgm"))
 print(ecart_type("chat.pgm"))
 print(histogramme("chat.pgm"))
 print(histogrammeCumul("chat.pgm"))
-
+print(probabilities("chat.pgm"))
+print(probabilitiesCumul("chat.pgm"))
+print(a_("chat.pgm"))
+print(n1_("chat.pgm"))
+print(histogramme_egalisation("chat.pgm"))
+transformation_linear([[20,100],[100,200]],"chat.pgm")
