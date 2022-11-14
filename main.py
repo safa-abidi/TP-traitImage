@@ -1,3 +1,6 @@
+from random import randrange
+
+
 def get_params(nom):
     mat = lire(nom)
     file_type = nom.split(".")[1]
@@ -54,7 +57,7 @@ def ecrire(nom, mat):
         line = ""
         for x in range(0, lx):
             if file_type == "pgm":
-                line += mat[y][x] + " "
+                line += str(mat[y][x]) + " "
             elif file_type == "ppm":
                 line += mat[y][x][0] + " " + mat[y][x][1] + " " + mat[y][x][2] + " "
         file.write(line[:len(line) - 1] + "\n")
@@ -207,6 +210,74 @@ def transformation_linear(points,nom):
     return ecrire("chat_transformé.pgm", mat)
 
 
+def bruit(image):
+    mat = lire(image)
+    for i in range(0, len(mat)):
+        for j in range(0, len(mat[0])):
+            r = randrange(21)
+            if r == 0:
+                mat[i][j] = 0
+            elif r == 20:
+                mat[i][j] = 255
+    return mat
+
+
+def convolution(filter,image):
+    mat = lire(image)
+    result = mat
+    s = 0.0
+    for i in range(int(len(filter)/2),len(mat)-int(len(filter)/2)):
+        for j in range(int(len(filter)/2),len(mat[0])-int(len(filter)/2)):
+            for k in range(int(-len(filter)/2), int(len(filter)/2)+1):
+                for z in range(int(-len(filter)/2), int(len(filter)/2)+1):
+                    s += float(mat[i+k][j+z])*filter[k+int(len(filter)/2)][z+int(len(filter)/2)]
+            if s < 0.0:
+                s = 0.0
+            elif s > 255.0:
+                s = 255.0
+            result[i][j] = int(s)
+            s = 0.0
+    return result
+
+
+def moyenneur(taille,image):
+    filt = [[1/(taille**2)]*taille]*taille
+    return convolution(filt, image)
+
+
+def median(taille,image):
+    mat = lire(image)
+    result = mat
+    med = [0] * (taille**2)
+    for i in range(int(taille/2),len(mat)-int(taille/2)):
+        for j in range(int(taille/2),len(mat[0])-int(taille/2)):
+            for k in range(int(-taille/2), int(taille/2)+1):
+                for z in range(int(-taille/2), int(taille/2)+1):
+                    med[(k*taille)+z] = int(mat[i+k][j+z])
+            med.sort()
+            result[i][j] = med[int((taille**2)/2)]
+    return result
+
+
+def rehausser_contours(image):
+    fh = [[-1,-1,-1],[-1,9,-1],[-1,-1,-1]]
+    print(fh)
+    return convolution(fh,image)
+
+
+def SNR(image,filtered):
+    mu = moy(image)
+    mat_o = lire(image)
+    mat_f = lire(filtered)
+    s1 = 0
+    s2 = 0
+    for i in range(0,len(mat_o)):
+        for j in range(0,len(mat_o[0])):
+            s1 += (int(mat_o[i][j]) - mu)**2
+            s2 += (int(mat_f[i][j]) - int(mat_o[i][j]))**2
+    return -(s1/s2)**0.5
+
+
 chat_mat = lire('chat.pgm')
 print(chat_mat)
 ecrire("chat_new.pgm", chat_mat)
@@ -220,3 +291,11 @@ print(a_("chat.pgm"))
 print(n1_("chat.pgm"))
 print(histogramme_egalisation("chat.pgm"))
 transformation_linear([[20,100],[100,200]],"chat.pgm")
+ecrire("chat_bruitié.pgm",bruit('chat.pgm'))
+ecrire("chat_flou.pgm",moyenneur(7,"chat_bruitié.pgm"))
+ecrire("chat_median.pgm",median(3,"chat_bruitié.pgm"))
+ecrire("rehausser_chat.pgm",rehausser_contours("chat.pgm"))
+print("SNR image filtrée en moyenneur :")
+print(SNR("chat.pgm","chat_flou.pgm"))
+print("SNR filtrée avec le median :")
+print(SNR("chat.pgm","chat_median.pgm"))
