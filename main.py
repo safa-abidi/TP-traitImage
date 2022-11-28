@@ -27,12 +27,13 @@ def lire(nom):
         pixels = line.split(' ')
         if file_type == "P2":
             mat.append(pixels)
+            mat[y][lx - 1] = mat[y][lx - 1].strip()
         elif file_type == "P3":
             row = list()
-            for x in range(0, lx, 3):
-                row.append((pixels[x], pixels[x + 1], pixels[x + 2]))
+            for x in range(0, lx * 3, 3):
+                row.append(list([pixels[x], pixels[x + 1], pixels[x + 2]]))
             mat.append(row)
-        mat[y][lx - 1] = mat[y][lx - 1].strip()
+            mat[y][lx - 1][2] = mat[y][lx - 1][2].strip()
     file.close()
     return mat
 
@@ -180,20 +181,20 @@ def histogramme_egalisation(nom):
     return he
 
 
-def transformation_linear(points,nom):
+def transformation_linear(points, nom):
     x = points[0][0]
     y = points[0][1]
     x1 = points[1][0]
     y1 = points[1][1]
 
     b = 0
-    a = int(y/x)
+    a = int(y / x)
 
-    a1 = int((y1-y)/(x1-x))
-    b1 = int(y1 - a1*x1)
+    a1 = int((y1 - y) / (x1 - x))
+    b1 = int(y1 - a1 * x1)
 
-    a2 = int((255 - y1)/(255 - x1))
-    b2 = 255 - a2*255
+    a2 = int((255 - y1) / (255 - x1))
+    b2 = 255 - a2 * 255
 
     mat = lire(nom)
     lx = len(mat[0])
@@ -202,9 +203,9 @@ def transformation_linear(points,nom):
     for i in range(0, ly):
         for j in range(0, lx):
             if int(mat[i][j]) <= x:
-                mat[i][j] = str(a*int(mat[i][j]) + b)
+                mat[i][j] = str(a * int(mat[i][j]) + b)
             elif int(mat[i][j]) <= x1:
-                mat[i][j] = str(a1*int(mat[i][j]) + b1)
+                mat[i][j] = str(a1 * int(mat[i][j]) + b1)
             else:
                 mat[i][j] = str(a2 * int(mat[i][j]) + b2)
     return ecrire("chat_transformé.pgm", mat)
@@ -222,15 +223,15 @@ def bruit(image):
     return mat
 
 
-def convolution(filter,image):
+def convolution(filter, image):
     mat = lire(image)
     result = mat
     s = 0.0
-    for i in range(int(len(filter)/2),len(mat)-int(len(filter)/2)):
-        for j in range(int(len(filter)/2),len(mat[0])-int(len(filter)/2)):
-            for k in range(int(-len(filter)/2), int(len(filter)/2)+1):
-                for z in range(int(-len(filter)/2), int(len(filter)/2)+1):
-                    s += float(mat[i+k][j+z])*filter[k+int(len(filter)/2)][z+int(len(filter)/2)]
+    for i in range(int(len(filter) / 2), len(mat) - int(len(filter) / 2)):
+        for j in range(int(len(filter) / 2), len(mat[0]) - int(len(filter) / 2)):
+            for k in range(int(-len(filter) / 2), int(len(filter) / 2) + 1):
+                for z in range(int(-len(filter) / 2), int(len(filter) / 2) + 1):
+                    s += float(mat[i + k][j + z]) * filter[k + int(len(filter) / 2)][z + int(len(filter) / 2)]
             if s < 0.0:
                 s = 0.0
             elif s > 255.0:
@@ -240,42 +241,85 @@ def convolution(filter,image):
     return result
 
 
-def moyenneur(taille,image):
-    filt = [[1/(taille**2)]*taille]*taille
+def moyenneur(taille, image):
+    filt = [[1 / (taille ** 2)] * taille] * taille
     return convolution(filt, image)
 
 
-def median(taille,image):
+def median(taille, image):
     mat = lire(image)
     result = mat
-    med = [0] * (taille**2)
-    for i in range(int(taille/2),len(mat)-int(taille/2)):
-        for j in range(int(taille/2),len(mat[0])-int(taille/2)):
-            for k in range(int(-taille/2), int(taille/2)+1):
-                for z in range(int(-taille/2), int(taille/2)+1):
-                    med[(k*taille)+z] = int(mat[i+k][j+z])
+    med = [0] * (taille ** 2)
+    for i in range(int(taille / 2), len(mat) - int(taille / 2)):
+        for j in range(int(taille / 2), len(mat[0]) - int(taille / 2)):
+            for k in range(int(-taille / 2), int(taille / 2) + 1):
+                for z in range(int(-taille / 2), int(taille / 2) + 1):
+                    med[(k * taille) + z] = int(mat[i + k][j + z])
             med.sort()
-            result[i][j] = med[int((taille**2)/2)]
+            result[i][j] = med[int((taille ** 2) / 2)]
     return result
 
 
 def rehausser_contours(image):
-    fh = [[-1,-1,-1],[-1,9,-1],[-1,-1,-1]]
+    fh = [[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]
     print(fh)
-    return convolution(fh,image)
+    return convolution(fh, image)
 
 
-def SNR(image,filtered):
+def SNR(image, filtered):
     mu = moy(image)
     mat_o = lire(image)
     mat_f = lire(filtered)
     s1 = 0
     s2 = 0
-    for i in range(0,len(mat_o)):
-        for j in range(0,len(mat_o[0])):
-            s1 += (int(mat_o[i][j]) - mu)**2
-            s2 += (int(mat_f[i][j]) - int(mat_o[i][j]))**2
-    return -(s1/s2)**0.5
+    for i in range(0, len(mat_o)):
+        for j in range(0, len(mat_o[0])):
+            s1 += (int(mat_o[i][j]) - mu) ** 2
+            s2 += (int(mat_f[i][j]) - int(mat_o[i][j])) ** 2
+    return -(s1 / s2) ** 0.5
+
+
+def seuillage_manual(image, seuil_r, seuil_g, seuil_b):
+    seuil = [seuil_r, seuil_g, seuil_b]
+    mat_img = lire(image)
+    ly = len(mat_img)
+    lx = len(mat_img[0])
+    for y in range(0, ly):
+        for x in range(0, lx):
+            for c in range(0, 3):
+                if int(mat_img[y][x][c]) > seuil[c]:
+                    mat_img[y][x][c] = '255'
+                else:
+                    mat_img[y][x][c] = '0'
+    return mat_img
+
+
+def seuillage_ETOU(image,seuil,flag):
+    mat_img = lire(image)
+    ly = len(mat_img)
+    lx = len(mat_img[0])
+    for y in range(0, ly):
+        for x in range(0, lx):
+            if flag == "ET":
+                conserver = True
+                for c in range(0, 3):
+                    if int(mat_img[y][x][c]) > seuil:
+                        conserver = conserver and True
+                    else:
+                        conserver = conserver and False
+                if not(conserver):
+                    mat_img[y][x] = ['0', '0', '0']
+            elif flag == "OU":
+                conserver = True
+                for c in range(0, 3):
+                    if int(mat_img[y][x][c]) > seuil:
+                        conserver = conserver or True
+                    else:
+                        conserver = conserver or False
+                    if not (conserver):
+                        mat_img[y][x] = ['0', '0', '0']
+    return mat_img
+
 
 
 chat_mat = lire('chat.pgm')
@@ -290,12 +334,20 @@ print(probabilitiesCumul("chat.pgm"))
 print(a_("chat.pgm"))
 print(n1_("chat.pgm"))
 print(histogramme_egalisation("chat.pgm"))
-transformation_linear([[20,100],[100,200]],"chat.pgm")
-ecrire("chat_bruitié.pgm",bruit('chat.pgm'))
-ecrire("chat_flou.pgm",moyenneur(7,"chat_bruitié.pgm"))
-ecrire("chat_median.pgm",median(3,"chat_bruitié.pgm"))
-ecrire("rehausser_chat.pgm",rehausser_contours("chat.pgm"))
+transformation_linear([[20, 100], [100, 200]], "chat.pgm")
+ecrire("chat_bruitié.pgm", bruit('chat.pgm'))
+ecrire("chat_flou.pgm", moyenneur(3, "chat_bruitié.pgm"))
+ecrire("chat_median.pgm", median(3, "chat_bruitié.pgm"))
+ecrire("rehausser_chat.pgm", rehausser_contours("chat.pgm"))
 print("SNR image filtrée en moyenneur :")
-print(SNR("chat.pgm","chat_flou.pgm"))
+print(SNR("chat_bruitié.pgm", "chat_flou.pgm"))
 print("SNR filtrée avec le median :")
-print(SNR("chat.pgm","chat_median.pgm"))
+print(SNR("chat_bruitié.pgm", "chat_median.pgm"))
+felfel_ppm = lire("peppers.ppm")
+mat_seuil = seuillage_manual("peppers.ppm", 128, 128, 128)
+print(mat_seuil)
+ecrire("felfel_new.ppm",mat_seuil)
+felfel_et = seuillage_ETOU("felfel_new.ppm",128,"ET")
+felfel_ou = seuillage_ETOU("felfel_new.ppm",128,"OU")
+ecrire("felfel_et.ppm",felfel_et)
+ecrire("felfel_ou.ppm",felfel_ou)
