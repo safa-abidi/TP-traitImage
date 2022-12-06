@@ -1,4 +1,18 @@
 from random import randrange
+from kivy.app import App
+from kivy.properties import StringProperty
+from kivy.uix.button import Button
+from kivy.uix.filechooser import FileChooserIconView
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.image import Image
+from kivy.uix.scatter import Scatter
+from kivy.uix.floatlayout import FloatLayout
+from kivy.factory import Factory
+from kivy.properties import ObjectProperty
+from kivy.uix.popup import Popup
+
+import os
 
 
 def get_params(nom):
@@ -294,7 +308,7 @@ def seuillage_manual(image, seuil_r, seuil_g, seuil_b):
     return mat_img
 
 
-def seuillage_ETOU(image,seuil,flag):
+def seuillage_ETOU(image, seuil, flag):
     mat_img = lire(image)
     ly = len(mat_img)
     lx = len(mat_img[0])
@@ -307,7 +321,7 @@ def seuillage_ETOU(image,seuil,flag):
                         conserver = conserver and True
                     else:
                         conserver = conserver and False
-                if not(conserver):
+                if not (conserver):
                     mat_img[y][x] = ['0', '0', '0']
             elif flag == "OU":
                 conserver = True
@@ -319,7 +333,6 @@ def seuillage_ETOU(image,seuil,flag):
                     if not (conserver):
                         mat_img[y][x] = ['0', '0', '0']
     return mat_img
-
 
 
 chat_mat = lire('chat.pgm')
@@ -346,8 +359,124 @@ print(SNR("chat_bruitié.pgm", "chat_median.pgm"))
 felfel_ppm = lire("peppers.ppm")
 mat_seuil = seuillage_manual("peppers.ppm", 128, 128, 128)
 print(mat_seuil)
-ecrire("felfel_new.ppm",mat_seuil)
-felfel_et = seuillage_ETOU("felfel_new.ppm",128,"ET")
-felfel_ou = seuillage_ETOU("felfel_new.ppm",128,"OU")
-ecrire("felfel_et.ppm",felfel_et)
-ecrire("felfel_ou.ppm",felfel_ou)
+ecrire("felfel_new.ppm", mat_seuil)
+felfel_et = seuillage_ETOU("felfel_new.ppm", 128, "ET")
+felfel_ou = seuillage_ETOU("felfel_new.ppm", 128, "OU")
+ecrire("felfel_et.ppm", felfel_et)
+ecrire("felfel_ou.ppm", felfel_ou)
+
+
+class LoadDialog(FloatLayout):
+    load = ObjectProperty(None)
+    cancel = ObjectProperty(None)
+
+    def __init__(self, picture, **kwargs):
+        super(LoadDialog, self).__init__(**kwargs)
+        self.box = BoxLayout(orientation="vertical")
+        self.add_widget(self.box)
+        file_chooser = FileChooserIconView()
+        self.box.add_widget(file_chooser)
+        self.button_submit = Button(text="OK")
+
+        def load_file(instance):
+            picture.source = file_chooser.selection[0]
+            picture.reload()
+
+
+        self.button_submit.bind(on_press=load_file)
+        self.box.add_widget(self.button_submit)
+
+
+class SaveDialog(FloatLayout):
+    save = ObjectProperty(None)
+    text_input = ObjectProperty(None)
+    cancel = ObjectProperty(None)
+
+
+class Root(FloatLayout):
+    loadfile = ObjectProperty(None)
+    savefile = ObjectProperty(None)
+    text_input = ObjectProperty(None)
+
+    def dismiss_popup(self):
+        self._popup.dismiss()
+
+    def show_load(self, picture):
+        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture)
+        self._popup = Popup(title="Load File", content=content,
+                            size_hint=(0.9, 0.9))
+        self._popup.open()
+
+    def show_save(self):
+        content = SaveDialog(save=self.save, cancel=self.dismiss_popup)
+        self._popup = Popup(title="Save file", content=content,
+                            size_hint=(0.9, 0.9))
+        self._popup.open()
+
+    def load(self, path, filename):
+        with open(os.path.join(path, filename[0])) as stream:
+            self.text_input.text = stream.read()
+
+        self.dismiss_popup()
+
+    def save(self, path, filename):
+        with open(os.path.join(path, filename), 'w') as stream:
+            stream.write(self.text_input.text)
+
+        self.dismiss_popup()
+
+
+class Editor(App):
+    pass
+
+
+Factory.register('Root', cls=Root)
+Factory.register('LoadDialog', cls=LoadDialog)
+Factory.register('SaveDialog', cls=SaveDialog)
+
+
+class Picture(Scatter):
+    source = StringProperty(None)
+
+
+class Grid(GridLayout):
+    def __init__(self, **kwargs):
+        super(Grid, self).__init__(**kwargs)
+        self.cols = 2
+        self.rows = 2
+        self.left = GridLayout()
+        self.left.cols = 1
+        self.left.rows = 3
+        self.layoutLeft = BoxLayout(orientation="vertical")
+        self.filter = Button(text="Filter", size_hint_x=None, width=300)
+        self.segment = Button(text="Segment", size_hint_x=None, width=300)
+        self.seuillage = Button(text="Seuillage", size_hint_x=None, width=300)
+        self.layoutLeft.add_widget(self.filter)
+        self.layoutLeft.add_widget(self.segment)
+        self.layoutLeft.add_widget(self.seuillage)
+        try:
+            self.picture = Image(source="chat.pgm", size_hint_x=None, width=1067, size_hint_y=None, height=550)
+        except Exception as e:
+            print(e)
+        self.console = Button(text="Console Here", size_hint_x=None, width=300)
+
+        def import_file(instance):
+            root = Root()
+            root.show_load(picture=self.picture)
+
+        self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1),
+                                 size_hint_x=None, width=1067, size_hint_y=None, height=147)
+        self.importFile.bind(on_press=import_file)
+        self.add_widget(self.layoutLeft)
+        self.add_widget(self.picture)
+        self.add_widget(self.console)
+        self.add_widget(self.importFile)
+
+
+class GUI(App):
+    def build(self):
+        return Grid()
+
+
+if __name__ == "__main__":
+    GUI().run()
