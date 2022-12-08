@@ -14,6 +14,8 @@ from kivy.uix.popup import Popup
 
 import os
 
+from kivy.uix.textinput import TextInput
+
 
 def get_params(nom):
     mat = lire(nom)
@@ -222,7 +224,7 @@ def transformation_linear(points, nom):
                 mat[i][j] = str(a1 * int(mat[i][j]) + b1)
             else:
                 mat[i][j] = str(a2 * int(mat[i][j]) + b2)
-    return ecrire("chat_transformé.pgm", mat)
+    return ecrire("temp_tl.pgm", mat)
 
 
 def bruit(image):
@@ -370,18 +372,18 @@ class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
 
-    def __init__(self, picture, **kwargs):
+    def __init__(self, picture, popup, root, **kwargs):
         super(LoadDialog, self).__init__(**kwargs)
-        self.box = BoxLayout(orientation="vertical")
+        self.box = BoxLayout(orientation="vertical", size=root.size, pos=root.pos, padding=(150, 0, 0, 70))
         self.add_widget(self.box)
         file_chooser = FileChooserIconView()
         self.box.add_widget(file_chooser)
-        self.button_submit = Button(text="OK")
+        self.button_submit = Button(text="OK", size_hint=(None, None), size=(1064, 50))
 
         def load_file(instance):
             picture.source = file_chooser.selection[0]
             picture.reload()
-
+            popup.dismiss()
 
         self.button_submit.bind(on_press=load_file)
         self.box.add_widget(self.button_submit)
@@ -402,9 +404,9 @@ class Root(FloatLayout):
         self._popup.dismiss()
 
     def show_load(self, picture):
-        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture)
-        self._popup = Popup(title="Load File", content=content,
-                            size_hint=(0.9, 0.9))
+        self._popup = Popup(title="Load File", size_hint=(0.9, 0.9))
+        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture, popup=self._popup, root=self)
+        self._popup.content = content
         self._popup.open()
 
     def show_save(self):
@@ -448,9 +450,46 @@ class Grid(GridLayout):
         self.left.cols = 1
         self.left.rows = 3
         self.layoutLeft = BoxLayout(orientation="vertical")
+
+        def transform_in_range(n):
+            if n > 255:
+                return 255
+            elif n < 0:
+                return 0
+            else:
+                return n
+
+        def LT(instance):
+            x1 = transform_in_range(int(in_1.text))
+            y1 = transform_in_range(int(in_2.text))
+            x2 = transform_in_range(int(in_3.text))
+            y2 = transform_in_range(int(in_4.text))
+            transformation_linear([[x1, y1], [x2, y2]], self.picture.source)
+            self.picture.source = "temp_tl.pgm"
+            self.picture.reload()
+
+        self.linearTransform = BoxLayout(orientation="vertical")
+        btn_lt = Button(text="Transformation Linéaire", size_hint_x=None, width=300)
+        btn_lt.bind(on_press=LT)
+        box_lt = BoxLayout(orientation="horizontal", spacing=15)
+        box_lt_pt1 = BoxLayout(orientation="horizontal", padding=20, spacing=7.5)
+        box_lt_pt2 = BoxLayout(orientation="horizontal", padding=20, spacing=7.5)
+        in_1 = TextInput(input_filter="int")
+        in_2 = TextInput(input_filter="int")
+        in_3 = TextInput(input_filter="int")
+        in_4 = TextInput(input_filter="int")
+        box_lt_pt1.add_widget(in_1)
+        box_lt_pt1.add_widget(in_2)
+        box_lt_pt2.add_widget(in_3)
+        box_lt_pt2.add_widget(in_4)
+        box_lt.add_widget(box_lt_pt1)
+        box_lt.add_widget(box_lt_pt2)
+        self.linearTransform.add_widget(btn_lt)
+        self.linearTransform.add_widget(box_lt)
         self.filter = Button(text="Filter", size_hint_x=None, width=300)
         self.segment = Button(text="Segment", size_hint_x=None, width=300)
         self.seuillage = Button(text="Seuillage", size_hint_x=None, width=300)
+        self.layoutLeft.add_widget(self.linearTransform)
         self.layoutLeft.add_widget(self.filter)
         self.layoutLeft.add_widget(self.segment)
         self.layoutLeft.add_widget(self.seuillage)
