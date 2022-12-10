@@ -13,6 +13,8 @@ from kivy.properties import ObjectProperty
 from kivy.uix.popup import Popup
 from kivy.garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
 import matplotlib.pyplot as plt
+from kivy.core.text import Label as CoreLabel
+from kivy.uix.label import Label
 
 import os
 
@@ -388,7 +390,7 @@ class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
 
-    def __init__(self, picture, popup, root, **kwargs):
+    def __init__(self, picture, popup, root, p, x, console,m,e, **kwargs):
         super(LoadDialog, self).__init__(**kwargs)
         self.box = BoxLayout(orientation="vertical", size=root.size, pos=root.pos, padding=(150, 0, 0, 70))
         self.add_widget(self.box)
@@ -396,9 +398,24 @@ class LoadDialog(FloatLayout):
         self.box.add_widget(file_chooser)
         self.button_submit = Button(text="OK", size_hint=(None, None), size=(1064, 50))
 
+        def recalculate_characteristics():
+            moyenne = Label(text=("Moyenne : " + str(moy(picture.source))))
+            ecart = Label(text=("Ecart Type : " + str(ecart_type(picture.source))))
+            console.remove_widget(m)
+            console.remove_widget(e)
+            console.remove_widget(p)
+            console.add_widget(moyenne)
+            console.add_widget(ecart)
+            plt.clf()
+            plt.plot(x, histogramme(picture.source))
+            console.remove_widget(p)
+            plot = FigureCanvasKivyAgg(plt.gcf())
+            console.add_widget(p)
+
         def load_file(instance):
             picture.source = file_chooser.selection[0]
             picture.reload()
+            recalculate_characteristics()
             popup.dismiss()
 
         self.button_submit.bind(on_press=load_file)
@@ -419,9 +436,9 @@ class Root(FloatLayout):
     def dismiss_popup(self):
         self._popup.dismiss()
 
-    def show_load(self, picture):
+    def show_load(self, picture, plot,x,console,moyenne,ecart):
         self._popup = Popup(title="Load File", size_hint=(0.9, 0.9))
-        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture, popup=self._popup, root=self)
+        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture, popup=self._popup, root=self, p=plot,x=x,console=console,m=moyenne,e=ecart)
         self._popup.content = content
         self._popup.open()
 
@@ -563,20 +580,17 @@ class Grid(GridLayout):
         plt.ylabel('H(n)', fontsize=16)
         plt.clf()
         plt.plot(x, histogramme(self.picture.source))
-        self.console = BoxLayout()
+        self.console = BoxLayout(orientation="vertical")
+        moyenne = Label(text=("Moyenne : " + str(moy(self.picture.source))))
+        ecart = Label(text=("Ecart Type : " + str(ecart_type(self.picture.source))))
+        self.console.add_widget(moyenne)
+        self.console.add_widget(ecart)
         self.plot = FigureCanvasKivyAgg(plt.gcf())
-        self.console.add_widget(self.plot, index=1)
+        self.console.add_widget(self.plot)
 
         def import_file(instance):
             root = Root()
-            root.show_load(picture=self.picture)
-            print("heyyyyyy")
-            plt.clf()
-            plt.plot(x, histogramme(self.picture.source))
-            self.console.remove_widget(self.plot)
-            self.plot = FigureCanvasKivyAgg(plt.gcf())
-            self.console.add_widget(self.plot, index=1)
-            print("heyyyyyy")
+            root.show_load(picture=self.picture, plot=self.plot,x=x,console=self.console,moyenne=moyenne,ecart=ecart)
 
         self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1),
                                  size_hint_x=None, width=1067, size_hint_y=None, height=147)
