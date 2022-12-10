@@ -399,8 +399,8 @@ class LoadDialog(FloatLayout):
         self.button_submit = Button(text="OK", size_hint=(None, None), size=(1064, 50))
 
         def recalculate_characteristics():
-            moyenne = Label(text=("Moyenne : " + str(moy(picture.source))))
-            ecart = Label(text=("Ecart Type : " + str(ecart_type(picture.source))))
+            moyenne = Label(text=("Moyenne : " + str(moy(picture.source))),size_hint=(1,None),height=50)
+            ecart = Label(text=("Ecart Type : " + str(ecart_type(picture.source))),size_hint=(1,None),height=50)
             console.remove_widget(m)
             console.remove_widget(e)
             console.remove_widget(p)
@@ -410,7 +410,7 @@ class LoadDialog(FloatLayout):
             plt.plot(x, histogramme(picture.source))
             console.remove_widget(p)
             plot = FigureCanvasKivyAgg(plt.gcf())
-            console.add_widget(p)
+            console.add_widget(plot)
 
         def load_file(instance):
             picture.source = file_chooser.selection[0]
@@ -474,15 +474,12 @@ class Picture(Scatter):
     source = StringProperty(None)
 
 
-class Grid(GridLayout):
+class Grid(BoxLayout):
     def __init__(self, **kwargs):
         super(Grid, self).__init__(**kwargs)
-        self.cols = 2
-        self.rows = 2
-        self.left = GridLayout()
-        self.left.cols = 1
-        self.left.rows = 3
-        self.layoutLeft = BoxLayout(orientation="vertical")
+        self.orientation = "vertical"
+        self.left = BoxLayout(orientation="vertical")
+        self.layoutTop = BoxLayout(orientation="horizontal",size_hint=(1,None),height=135)
 
         def transform_in_range(n):
             if n > 255:
@@ -502,7 +499,7 @@ class Grid(GridLayout):
             self.picture.reload()
 
         self.linearTransform = BoxLayout(orientation="vertical")
-        btn_lt = Button(text="Transformation Linéaire", size_hint_x=None, width=300)
+        btn_lt = Button(text="Transformation Linéaire")
         btn_lt.bind(on_press=LT)
         box_lt = BoxLayout(orientation="horizontal", spacing=15)
         box_lt_pt1 = BoxLayout(orientation="horizontal", padding=20, spacing=7.5)
@@ -519,8 +516,8 @@ class Grid(GridLayout):
         box_lt.add_widget(box_lt_pt2)
         self.linearTransform.add_widget(btn_lt)
         self.linearTransform.add_widget(box_lt)
-        self.hist = Button(text="Histogramme", size_hint_x=None, width=300)
-        self.filter = Button(text="Filter", size_hint_x=None, width=300)
+        self.hist = Button(text="Histogramme")
+        self.filter = Button(text="Filter")
 
         def apply_filter(instance):
             self.filter_pop_up = Popup(title="Filter Size", size_hint=(0.5, 0.5))
@@ -563,14 +560,14 @@ class Grid(GridLayout):
             self.filter_pop_up.open()
 
         self.filter.bind(on_press=apply_filter)
-        self.segment = Button(text="Segment", size_hint_x=None, width=300)
-        self.seuillage = Button(text="Seuillage", size_hint_x=None, width=300)
-        self.layoutLeft.add_widget(self.linearTransform)
-        self.layoutLeft.add_widget(self.filter)
-        self.layoutLeft.add_widget(self.segment)
-        self.layoutLeft.add_widget(self.seuillage)
+        self.segment = Button(text="Segment")
+        self.seuillage = Button(text="Seuillage")
+        self.layoutTop.add_widget(self.linearTransform)
+        self.layoutTop.add_widget(self.filter)
+        self.layoutTop.add_widget(self.segment)
+        self.layoutTop.add_widget(self.seuillage)
         try:
-            self.picture = Image(source="chat.pgm", size_hint_x=None, width=1067, size_hint_y=None, height=550)
+            self.picture = Image(source="chat.pgm")
         except Exception as e:
             print(e)
         x = [0] * 256
@@ -581,8 +578,8 @@ class Grid(GridLayout):
         plt.clf()
         plt.plot(x, histogramme(self.picture.source))
         self.console = BoxLayout(orientation="vertical")
-        moyenne = Label(text=("Moyenne : " + str(moy(self.picture.source))))
-        ecart = Label(text=("Ecart Type : " + str(ecart_type(self.picture.source))))
+        moyenne = Label(text=("Moyenne : " + str(moy(self.picture.source))),size_hint=(1,None),height=50)
+        ecart = Label(text=("Ecart Type : " + str(ecart_type(self.picture.source))),size_hint=(1,None),height=50)
         self.console.add_widget(moyenne)
         self.console.add_widget(ecart)
         self.plot = FigureCanvasKivyAgg(plt.gcf())
@@ -592,13 +589,16 @@ class Grid(GridLayout):
             root = Root()
             root.show_load(picture=self.picture, plot=self.plot,x=x,console=self.console,moyenne=moyenne,ecart=ecart)
 
-        self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1),
-                                 size_hint_x=None, width=1067, size_hint_y=None, height=147)
+        self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1))
         self.importFile.bind(on_press=import_file)
-        self.add_widget(self.layoutLeft)
-        self.add_widget(self.picture)
-        self.add_widget(self.console)
-        self.add_widget(self.importFile)
+        self.layoutMiddle = BoxLayout(orientation="horizontal",size_hint=(1,None),height=500)
+        self.layoutMiddle.add_widget(self.console)
+        self.layoutMiddle.add_widget(self.picture)
+        self.layoutBottom = BoxLayout(orientation="horizontal")
+        self.layoutBottom.add_widget(self.importFile)
+        self.add_widget(self.layoutTop)
+        self.add_widget(self.layoutMiddle)
+        self.add_widget(self.layoutBottom)
 
 
 class GUI(App):
