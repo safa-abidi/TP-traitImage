@@ -11,6 +11,8 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.uix.popup import Popup
+from kivy.garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
+import matplotlib.pyplot as plt
 
 import os
 
@@ -130,12 +132,22 @@ def histogramme(nom):
     file_type = nom.split(".")[1]
     lx = len(mat[0])
     ly = len(mat)
-    h = [0] * 256
-    for i in range(0, ly):
-        for j in range(0, lx):
-            k = int(mat[i][j])
-            h[k] += 1
-    return h
+    if file_type == "pgm":
+        h = [0] * 256
+        for i in range(0, ly):
+            for j in range(0, lx):
+                k = int(mat[i][j])
+                h[k] += 1
+        return h
+    elif file_type == "ppm":
+        hr = hg = hb = [0] * 256
+        for i in range(0, ly):
+            for j in range(0, lx):
+                [r, g, b] = int(mat[i][j])
+                hr[r] += 1
+                hg[g] += 1
+                hb[b] += 1
+        return [hr, hg, hb]
 
 
 def histogrammeCumul(nom):
@@ -337,12 +349,15 @@ def seuillage_ETOU(image, seuil, flag):
     return mat_img
 
 
+'''
 chat_mat = lire('chat.pgm')
 print(chat_mat)
 ecrire("chat_new.pgm", chat_mat)
 print(moy("chat.pgm"))
 print(ecart_type("chat.pgm"))
-print(histogramme("chat.pgm"))
+'''
+print(histogramme("C:\\Users\\Rayen\\OneDrive\\Documents\\Image Analysis\\TP1-traitImage-main\\chat_flou.pgm"))
+'''
 print(histogrammeCumul("chat.pgm"))
 print(probabilities("chat.pgm"))
 print(probabilitiesCumul("chat.pgm"))
@@ -366,6 +381,7 @@ felfel_et = seuillage_ETOU("felfel_new.ppm", 128, "ET")
 felfel_ou = seuillage_ETOU("felfel_new.ppm", 128, "OU")
 ecrire("felfel_et.ppm", felfel_et)
 ecrire("felfel_ou.ppm", felfel_ou)
+'''
 
 
 class LoadDialog(FloatLayout):
@@ -486,7 +502,50 @@ class Grid(GridLayout):
         box_lt.add_widget(box_lt_pt2)
         self.linearTransform.add_widget(btn_lt)
         self.linearTransform.add_widget(box_lt)
+        self.hist = Button(text="Histogramme", size_hint_x=None, width=300)
         self.filter = Button(text="Filter", size_hint_x=None, width=300)
+
+        def apply_filter(instance):
+            self.filter_pop_up = Popup(title="Filter Size", size_hint=(0.5, 0.5))
+            content = BoxLayout()
+            filter_size = TextInput(input_filter="int")
+            content.add_widget(filter_size)
+            button_validate_filter_size = Button(text="OK")
+
+            def open_filter(instance):
+                self.filter_input = Popup(title="Filter", size_hint=(0.5, 0.5))
+                content = BoxLayout(orientation="vertical")
+                inputs = [[TextInput()] * int(filter_size.text)] * int(filter_size.text)
+                for i in range(0, int(filter_size.text)):
+                    line = BoxLayout(orientation="horizontal")
+                    for j in range(0, int(filter_size.text)):
+                        inputs[i][j] = TextInput(input_filter="float")
+                        line.add_widget(inputs[i][j])
+                    content.add_widget(line)
+                validate_filter_input = Button(text="OK")
+
+                def calculate_filtered_image(instance):
+                    filter_mat = [[0.0] * int(filter_size.text)] * int(filter_size.text)
+                    for i in range(0, int(filter_size.text)):
+                        for j in range(0, int(filter_size.text)):
+                            filter_mat[i][j] = float(inputs[i][j].text)
+                    ecrire("temp_filtered.pgm", convolution(filter_mat, self.picture.source))
+                    self.picture.source = "temp_filtered.pgm"
+                    self.picture.reload()
+                    self.filter_input.dismiss()
+                    self.filter_pop_up.dismiss()
+
+                validate_filter_input.bind(on_press=calculate_filtered_image)
+                content.add_widget(validate_filter_input)
+                self.filter_input.content = content
+                self.filter_input.open()
+
+            button_validate_filter_size.bind(on_press=open_filter)
+            content.add_widget(button_validate_filter_size)
+            self.filter_pop_up.content = content
+            self.filter_pop_up.open()
+
+        self.filter.bind(on_press=apply_filter)
         self.segment = Button(text="Segment", size_hint_x=None, width=300)
         self.seuillage = Button(text="Seuillage", size_hint_x=None, width=300)
         self.layoutLeft.add_widget(self.linearTransform)
@@ -497,11 +556,27 @@ class Grid(GridLayout):
             self.picture = Image(source="chat.pgm", size_hint_x=None, width=1067, size_hint_y=None, height=550)
         except Exception as e:
             print(e)
-        self.console = Button(text="Console Here", size_hint_x=None, width=300)
+        x = [0] * 256
+        for i in range(0, 256):
+            x[i] = i
+        plt.xlabel('NdG', fontsize=18)
+        plt.ylabel('H(n)', fontsize=16)
+        plt.clf()
+        plt.plot(x, histogramme(self.picture.source))
+        self.console = BoxLayout()
+        self.plot = FigureCanvasKivyAgg(plt.gcf())
+        self.console.add_widget(self.plot, index=1)
 
         def import_file(instance):
             root = Root()
             root.show_load(picture=self.picture)
+            print("heyyyyyy")
+            plt.clf()
+            plt.plot(x, histogramme(self.picture.source))
+            self.console.remove_widget(self.plot)
+            self.plot = FigureCanvasKivyAgg(plt.gcf())
+            self.console.add_widget(self.plot, index=1)
+            print("heyyyyyy")
 
         self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1),
                                  size_hint_x=None, width=1067, size_hint_y=None, height=147)
