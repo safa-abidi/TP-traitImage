@@ -142,7 +142,9 @@ def histogramme(nom):
                 h[k] += 1
         return h
     elif file_type == "ppm":
-        hr = hg = hb = [0] * 256
+        hr = [0] * 256
+        hg = [0] * 256
+        hb = [0] * 256
         for i in range(0, ly):
             for j in range(0, lx):
                 [r, g, b] = mat[i][j]
@@ -333,22 +335,75 @@ def seuillage_ETOU(image, seuil, flag):
             if flag == "ET":
                 conserver = True
                 for c in range(0, 3):
-                    if int(mat_img[y][x][c]) > seuil:
+                    if int(mat_img[y][x][c]) > seuil[c]:
                         conserver = conserver and True
                     else:
                         conserver = conserver and False
                 if not (conserver):
                     mat_img[y][x] = ['0', '0', '0']
             elif flag == "OU":
-                conserver = True
+                conserver = False
                 for c in range(0, 3):
-                    if int(mat_img[y][x][c]) > seuil:
+                    if int(mat_img[y][x][c]) > seuil[c]:
                         conserver = conserver or True
                     else:
                         conserver = conserver or False
                     if not (conserver):
                         mat_img[y][x] = ['0', '0', '0']
     return mat_img
+
+
+def zero_order_cumulative_moment(hist, k):
+    zocm=0
+    for i in range(0, k):
+        zocm += hist[i]
+    return zocm
+
+
+def first_order_cumulative_moment(hist, k):
+    focm=0
+    for i in range(0, k):
+        focm += i*hist[i]
+    return focm
+
+
+def variance_class_separability(uT, wk, uk):
+    if wk == 0:
+        return -1
+    return ((uT*wk-uk)**2)/(wk*(1-wk))
+
+
+def otsu(hist, nom):
+    mat = lire(nom)
+    n = len(mat) * len(mat[0])
+    for i in range(0, 256):
+        hist[i] = hist[i]/n
+    w = [0] * 256
+    u = [0] * 256
+    for i in range(0, 256):
+        w[i] = zero_order_cumulative_moment(hist, i)
+        u[i] = first_order_cumulative_moment(hist, i)
+    uT = first_order_cumulative_moment(hist, 256)
+    var_max = -1
+    seuil_best = 0
+    for i in range(0, 256):
+        var_k = variance_class_separability(uT, w[i], u[i])
+        if var_k > var_max:
+            var_max = var_k
+            seuil_best = i
+    return seuil_best
+
+
+def seuillage_automatique(image):
+    [hr, hg, hb] = histogramme(image)
+    [sr, sg, sb] = [otsu(hr, image), otsu(hg, image), otsu(hb, image)]
+    return seuillage_manual(image, int(sr), int(sg), int(sb))
+
+
+def seuillage_automatique_ETOU(image, flag):
+    [hr, hg, hb] = histogramme(image)
+    [sr, sg, sb] = [otsu(hr, image), otsu(hg, image), otsu(hb, image)]
+    return seuillage_ETOU(image, [int(sr), int(sg), int(sb)], flag)
 
 
 '''
@@ -358,8 +413,7 @@ ecrire("chat_new.pgm", chat_mat)
 print(moy("chat.pgm"))
 print(ecart_type("chat.pgm"))
 '''
-print(histogramme("C:\\peppers.ppm"))
-print(lire("C:\\peppers.ppm"))
+print(seuillage_automatique("peppers.ppm"))
 '''
 print(histogrammeCumul("chat.pgm"))
 print(probabilities("chat.pgm"))
@@ -391,7 +445,7 @@ class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
 
-    def __init__(self, picture, popup, root, p, x, console,m,e, **kwargs):
+    def __init__(self, picture, popup, root, p, x, console, m, e, **kwargs):
         super(LoadDialog, self).__init__(**kwargs)
         self.box = BoxLayout(orientation="vertical", size=root.size, pos=root.pos, padding=(150, 0, 0, 70))
         self.add_widget(self.box)
@@ -400,19 +454,18 @@ class LoadDialog(FloatLayout):
         self.button_submit = Button(text="OK", size_hint=(None, None), size=(1064, 50))
 
         def recalculate_characteristics():
-            moyenne = Label(text=("Moyenne : " + str(moy(picture.source))),size_hint=(1,None),height=50)
-            ecart = Label(text=("Ecart Type : " + str(ecart_type(picture.source))),size_hint=(1,None),height=50)
+            moyenne = Label(text=("Moyenne : " + str(moy(picture.source))), size_hint=(1, None), height=50)
+            ecart = Label(text=("Ecart Type : " + str(ecart_type(picture.source))), size_hint=(1, None), height=50)
             console.remove_widget(m)
             console.remove_widget(e)
             console.remove_widget(p)
             console.add_widget(moyenne)
             console.add_widget(ecart)
-            pic_type = str(picture.source).split('.')[len(str(picture.source).split('.'))-1]
+            pic_type = str(picture.source).split('.')[len(str(picture.source).split('.')) - 1]
             plt.clf()
             if pic_type == "pgm":
                 plt.plot(x, histogramme(picture.source), color="black", label="Histogramme")
                 plt.legend()
-                console.remove_widget(p)
                 plot = FigureCanvasKivyAgg(plt.gcf())
                 console.add_widget(plot)
             elif pic_type == "ppm":
@@ -420,7 +473,6 @@ class LoadDialog(FloatLayout):
                 plt.plot(x, h[0], color="r", label="Histogramme Red")
                 plt.plot(x, h[1], color="g", label="Histogramme Green")
                 plt.plot(x, h[2], color="b", label="Histogramme Blue")
-                console.remove_widget(p)
                 plot = FigureCanvasKivyAgg(plt.gcf())
                 console.add_widget(plot)
                 plt.legend()
@@ -449,9 +501,10 @@ class Root(FloatLayout):
     def dismiss_popup(self):
         self._popup.dismiss()
 
-    def show_load(self, picture, plot,x,console,moyenne,ecart):
+    def show_load(self, picture, plot, x, console, moyenne, ecart):
         self._popup = Popup(title="Load File", size_hint=(0.9, 0.9))
-        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture, popup=self._popup, root=self, p=plot,x=x,console=console,m=moyenne,e=ecart)
+        content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture, popup=self._popup, root=self,
+                             p=plot, x=x, console=console, m=moyenne, e=ecart)
         self._popup.content = content
         self._popup.open()
 
@@ -490,9 +543,16 @@ class Picture(Scatter):
 class Grid(BoxLayout):
     def __init__(self, **kwargs):
         super(Grid, self).__init__(**kwargs)
+        x = [0] * 256
+        for i in range(0, 256):
+            x[i] = i
+        try:
+            self.picture = Image(source="chat.pgm")
+        except Exception as e:
+            print(e)
         self.orientation = "vertical"
         self.left = BoxLayout(orientation="vertical")
-        self.layoutTop = BoxLayout(orientation="horizontal",size_hint=(1,None),height=135)
+        self.layoutTop = BoxLayout(orientation="horizontal", size_hint=(1, None), height=135)
 
         def transform_in_range(n):
             if n > 255:
@@ -529,15 +589,43 @@ class Grid(BoxLayout):
         box_lt.add_widget(box_lt_pt2)
         self.linearTransform.add_widget(btn_lt)
         self.linearTransform.add_widget(box_lt)
-        self.hist = Button(text="Histogramme")
-        self.filter = Button(text="Filter")
+        self.egal_hist = Button(text="Egalisation d'Histogramme")
+
+        def egalisation_hist(instance):
+            self.he = Popup(title="Egalisation d'Histogramme", size_hint=(0.7, 0.5))
+            content = BoxLayout(orientation="vertical")
+            plt.clf()
+            plt.plot(x, histogramme_egalisation(self.picture.source), color="red", label="Histogramme Egalisé")
+            plt.legend()
+            self.hist_eg_graph = FigureCanvasKivyAgg(plt.gcf())
+            content.add_widget(self.hist_eg_graph)
+            exit_button = Button(text="Exit")
+
+            def dismiss(instance):
+                self.he.dismiss()
+
+            exit_button.bind(on_press=dismiss)
+            content.add_widget(exit_button)
+            self.he.content = content
+            self.he.open()
+
+        self.egal_hist.bind(on_press=egalisation_hist)
+        self.filter = BoxLayout(orientation="vertical")
+        filter_button = Button(text="Filter")
+        self.original = ""
 
         def apply_filter(instance):
+            self.original = self.picture.source
             self.filter_pop_up = Popup(title="Filter Size", size_hint=(0.5, 0.5))
-            content = BoxLayout()
+            content = BoxLayout(orientation="vertical")
             filter_size = TextInput(input_filter="int")
             content.add_widget(filter_size)
-            button_validate_filter_size = Button(text="OK")
+            button_set = BoxLayout(orientation="horizontal")
+
+            filter_moyenneur = Button(text="Moyenneur")
+            filter_median = Button(text="Median")
+            filter_rehausse = Button(text="Rehaussement")
+            button_validate_filter_size = Button(text="Custom..")
 
             def open_filter(instance):
                 self.filter_input = Popup(title="Filter", size_hint=(0.5, 0.5))
@@ -561,39 +649,144 @@ class Grid(BoxLayout):
                     self.picture.reload()
                     self.filter_input.dismiss()
                     self.filter_pop_up.dismiss()
+                    self.filter.remove_widget(snr)
+                    s = Label(
+                        text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                    self.filter.add_widget(s)
 
                 validate_filter_input.bind(on_press=calculate_filtered_image)
                 content.add_widget(validate_filter_input)
                 self.filter_input.content = content
                 self.filter_input.open()
 
+            def apply_moyenneur(instance):
+                ecrire("temp_filtered.pgm", moyenneur(int(filter_size.text), self.picture.source))
+                self.picture.source = "temp_filtered.pgm"
+                self.picture.reload()
+                self.filter_pop_up.dismiss()
+                self.filter.remove_widget(snr)
+                s = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                self.filter.add_widget(s)
+
+            def apply_median(instance):
+                ecrire("temp_filtered.pgm", median(int(filter_size.text), self.picture.source))
+                self.picture.source = "temp_filtered.pgm"
+                self.picture.reload()
+                self.filter_pop_up.dismiss()
+                self.filter.remove_widget(snr)
+                s = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                self.filter.add_widget(s)
+
+            def apply_rehausse(instance):
+                ecrire("temp_filtered.pgm", rehausser_contours(self.picture.source))
+                self.picture.source = "temp_filtered.pgm"
+                self.picture.reload()
+                self.filter_pop_up.dismiss()
+                self.filter.remove_widget(snr)
+                s = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                self.filter.add_widget(s)
+
+            filter_moyenneur.bind(on_press=apply_moyenneur)
+            filter_median.bind(on_press=apply_median)
+            filter_rehausse.bind(on_press=apply_rehausse)
             button_validate_filter_size.bind(on_press=open_filter)
-            content.add_widget(button_validate_filter_size)
+            button_set.add_widget(filter_moyenneur)
+            button_set.add_widget(filter_median)
+            button_set.add_widget(filter_rehausse)
+            button_set.add_widget(button_validate_filter_size)
+            content.add_widget(button_set)
             self.filter_pop_up.content = content
             self.filter_pop_up.open()
 
-        self.filter.bind(on_press=apply_filter)
-        self.segment = Button(text="Segment")
-        self.seuillage = Button(text="Seuillage")
+        filter_button.bind(on_press=apply_filter)
+        snr = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+        self.filter.add_widget(filter_button)
+        self.filter.add_widget(snr)
+
+        self.seuillage = BoxLayout(orientation="vertical")
+        seuillage_button_set = BoxLayout(orientation="horizontal")
+        seuillage_button = Button(text="Seuillage Manuel")
+        seuillage_et_button = Button(text="ET")
+        seuillage_ou_button = Button(text="OU")
+        seuillage_button_set.add_widget(seuillage_button)
+        seuillage_button_set.add_widget(seuillage_et_button)
+        seuillage_button_set.add_widget(seuillage_ou_button)
+        seuillage_input = BoxLayout(orientation="horizontal")
+        s_in_red = TextInput(input_filter="int")
+        s_in_green = TextInput(input_filter="int")
+        s_in_blue = TextInput(input_filter="int")
+        seuillage_input.add_widget(Label(text="Red : "))
+        seuillage_input.add_widget(s_in_red)
+        seuillage_input.add_widget(Label(text="Green : "))
+        seuillage_input.add_widget(s_in_green)
+        seuillage_input.add_widget(Label(text="Blue : "))
+        seuillage_input.add_widget(s_in_blue)
+
+        self.seuillage_auto = BoxLayout(orientation="horizontal")
+        seuillage_auto_button = Button(text="Seuillage Automatique")
+        seuillage_auto_et_button = Button(text="ET")
+        seuillage_auto_ou_button = Button(text="OU")
+        self.seuillage_auto.add_widget(seuillage_auto_button)
+        self.seuillage_auto.add_widget(seuillage_auto_et_button)
+        self.seuillage_auto.add_widget(seuillage_auto_ou_button)
+
+        def apply_seuillage(instance):
+            ecrire("temp_seuillage.ppm", seuillage_manual(self.picture.source, int(s_in_red.text), int(s_in_green.text),
+                                                          int(s_in_blue.text)))
+            self.picture.source = "temp_seuillage.ppm"
+            self.picture.reload()
+
+        def apply_seuillage_et(instance):
+            ecrire("temp_seuillage.ppm", seuillage_ETOU(self.picture.source, [int(s_in_red.text), int(s_in_green.text),
+                                                                              int(s_in_blue.text)], "ET"))
+            self.picture.source = "temp_seuillage.ppm"
+            self.picture.reload()
+
+        def apply_seuillage_ou(instance):
+            ecrire("temp_seuillage.ppm", seuillage_ETOU(self.picture.source, [int(s_in_red.text), int(s_in_green.text),
+                                                                              int(s_in_blue.text)], "OU"))
+            self.picture.source = "temp_seuillage.ppm"
+            self.picture.reload()
+
+        def apply_seuillage_auto(instance):
+            ecrire("temp_seuillage.ppm", seuillage_automatique(self.picture.source))
+            self.picture.source = "temp_seuillage.ppm"
+            self.picture.reload()
+
+        def apply_seuillage_auto_et(instance):
+            ecrire("temp_seuillage.ppm", seuillage_automatique_ETOU(self.picture.source, "ET"))
+            self.picture.source = "temp_seuillage.ppm"
+            self.picture.reload()
+
+        def apply_seuillage_auto_ou(instance):
+            ecrire("temp_seuillage.ppm", seuillage_ETOU(self.picture.source, "OU"))
+            self.picture.source = "temp_seuillage.ppm"
+            self.picture.reload()
+
+        seuillage_button.bind(on_press=apply_seuillage)
+        seuillage_et_button.bind(on_press=apply_seuillage_et)
+        seuillage_ou_button.bind(on_press=apply_seuillage_ou)
+        self.seuillage.add_widget(seuillage_button_set)
+        self.seuillage.add_widget(seuillage_input)
+
+        seuillage_auto_button.bind(on_press=apply_seuillage_auto)
+        seuillage_auto_et_button.bind(on_press=apply_seuillage_auto_et)
+        seuillage_auto_ou_button.bind(on_press=apply_seuillage_auto_ou)
+
         self.layoutTop.add_widget(self.linearTransform)
+        self.layoutTop.add_widget(self.egal_hist)
         self.layoutTop.add_widget(self.filter)
-        self.layoutTop.add_widget(self.segment)
         self.layoutTop.add_widget(self.seuillage)
-        try:
-            self.picture = Image(source="chat.pgm")
-        except Exception as e:
-            print(e)
-        x = [0] * 256
-        for i in range(0, 256):
-            x[i] = i
+        self.layoutTop.add_widget(self.seuillage_auto)
+
         plt.xlabel('Niveaux', fontsize=18)
         plt.ylabel('H(n)', fontsize=16)
         plt.clf()
         plt.plot(x, histogramme(self.picture.source), color="black", label="Histogramme")
         plt.legend()
         self.console = BoxLayout(orientation="vertical")
-        moyenne = Label(text=("Moyenne : " + str(moy(self.picture.source))),size_hint=(1,None),height=50)
-        ecart = Label(text=("Ecart Type : " + str(ecart_type(self.picture.source))),size_hint=(1,None),height=50)
+        moyenne = Label(text=("Moyenne : " + str(moy(self.picture.source))), size_hint=(1, None), height=50)
+        ecart = Label(text=("Ecart Type : " + str(ecart_type(self.picture.source))), size_hint=(1, None), height=50)
         self.console.add_widget(moyenne)
         self.console.add_widget(ecart)
         self.plot = FigureCanvasKivyAgg(plt.gcf())
@@ -601,11 +794,12 @@ class Grid(BoxLayout):
 
         def import_file(instance):
             root = Root()
-            root.show_load(picture=self.picture, plot=self.plot,x=x,console=self.console,moyenne=moyenne,ecart=ecart)
+            root.show_load(picture=self.picture, plot=self.plot, x=x, console=self.console, moyenne=moyenne,
+                           ecart=ecart)
 
         self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1))
         self.importFile.bind(on_press=import_file)
-        self.layoutMiddle = BoxLayout(orientation="horizontal",size_hint=(1,None),height=500)
+        self.layoutMiddle = BoxLayout(orientation="horizontal", size_hint=(1, None), height=500)
         self.layoutMiddle.add_widget(self.console)
         self.layoutMiddle.add_widget(self.picture)
         self.layoutBottom = BoxLayout(orientation="horizontal")
