@@ -145,10 +145,10 @@ def histogramme(nom):
         hr = hg = hb = [0] * 256
         for i in range(0, ly):
             for j in range(0, lx):
-                [r, g, b] = int(mat[i][j])
-                hr[r] += 1
-                hg[g] += 1
-                hb[b] += 1
+                [r, g, b] = mat[i][j]
+                hr[int(r)] += 1
+                hg[int(g)] += 1
+                hb[int(b)] += 1
         return [hr, hg, hb]
 
 
@@ -358,7 +358,8 @@ ecrire("chat_new.pgm", chat_mat)
 print(moy("chat.pgm"))
 print(ecart_type("chat.pgm"))
 '''
-print(histogramme("C:\\Users\\Rayen\\OneDrive\\Documents\\Image Analysis\\TP1-traitImage-main\\chat_flou.pgm"))
+print(histogramme("C:\\peppers.ppm"))
+print(lire("C:\\peppers.ppm"))
 '''
 print(histogrammeCumul("chat.pgm"))
 print(probabilities("chat.pgm"))
@@ -406,11 +407,23 @@ class LoadDialog(FloatLayout):
             console.remove_widget(p)
             console.add_widget(moyenne)
             console.add_widget(ecart)
+            pic_type = str(picture.source).split('.')[len(str(picture.source).split('.'))-1]
             plt.clf()
-            plt.plot(x, histogramme(picture.source))
-            console.remove_widget(p)
-            plot = FigureCanvasKivyAgg(plt.gcf())
-            console.add_widget(plot)
+            if pic_type == "pgm":
+                plt.plot(x, histogramme(picture.source), color="black", label="Histogramme")
+                plt.legend()
+                console.remove_widget(p)
+                plot = FigureCanvasKivyAgg(plt.gcf())
+                console.add_widget(plot)
+            elif pic_type == "ppm":
+                h = histogramme(picture.source)
+                plt.plot(x, h[0], color="r", label="Histogramme Red")
+                plt.plot(x, h[1], color="g", label="Histogramme Green")
+                plt.plot(x, h[2], color="b", label="Histogramme Blue")
+                console.remove_widget(p)
+                plot = FigureCanvasKivyAgg(plt.gcf())
+                console.add_widget(plot)
+                plt.legend()
 
         def load_file(instance):
             picture.source = file_chooser.selection[0]
@@ -573,10 +586,11 @@ class Grid(BoxLayout):
         x = [0] * 256
         for i in range(0, 256):
             x[i] = i
-        plt.xlabel('NdG', fontsize=18)
+        plt.xlabel('Niveaux', fontsize=18)
         plt.ylabel('H(n)', fontsize=16)
         plt.clf()
-        plt.plot(x, histogramme(self.picture.source))
+        plt.plot(x, histogramme(self.picture.source), color="black", label="Histogramme")
+        plt.legend()
         self.console = BoxLayout(orientation="vertical")
         moyenne = Label(text=("Moyenne : " + str(moy(self.picture.source))),size_hint=(1,None),height=50)
         ecart = Label(text=("Ecart Type : " + str(ecart_type(self.picture.source))),size_hint=(1,None),height=50)
