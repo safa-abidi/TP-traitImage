@@ -263,6 +263,8 @@ def convolution(filter, image):
         for j in range(int(len(filter) / 2), len(mat[0]) - int(len(filter) / 2)):
             for k in range(int(-len(filter) / 2), int(len(filter) / 2) + 1):
                 for z in range(int(-len(filter) / 2), int(len(filter) / 2) + 1):
+                    print(k)
+                    print(z)
                     s += float(mat[i + k][j + z]) * filter[k + int(len(filter) / 2)][z + int(len(filter) / 2)]
             if s < 0.0:
                 s = 0.0
@@ -354,30 +356,30 @@ def seuillage_ETOU(image, seuil, flag):
 
 
 def zero_order_cumulative_moment(hist, k):
-    zocm=0
+    zocm = 0
     for i in range(0, k):
         zocm += hist[i]
     return zocm
 
 
 def first_order_cumulative_moment(hist, k):
-    focm=0
+    focm = 0
     for i in range(0, k):
-        focm += i*hist[i]
+        focm += i * hist[i]
     return focm
 
 
 def variance_class_separability(uT, wk, uk):
     if wk == 0:
         return -1
-    return ((uT*wk-uk)**2)/(wk*(1-wk))
+    return ((uT * wk - uk) ** 2) / (wk * (1 - wk))
 
 
 def otsu(hist, nom):
     mat = lire(nom)
     n = len(mat) * len(mat[0])
     for i in range(0, 256):
-        hist[i] = hist[i]/n
+        hist[i] = hist[i] / n
     w = [0] * 256
     u = [0] * 256
     for i in range(0, 256):
@@ -406,6 +408,47 @@ def seuillage_automatique_ETOU(image, flag):
     return seuillage_ETOU(image, [int(sr), int(sg), int(sb)], flag)
 
 
+def erosion(image, size):
+    mat = seuillage_automatique(image)
+    mat_erose = seuillage_automatique(image)
+
+    for c in range(0, 3):
+        for i in range(int(size / 2), len(mat) - int(size / 2)):
+            for j in range(int(size / 2), len(mat[0]) - int(size / 2)):
+                for k in range(int(-size / 2), int(size / 2) + 1):
+                    for z in range(int(-size / 2), int(size / 2) + 1):
+                        if mat[i + k][j + z][c] == '0':
+                            mat_erose[i][j][c] = '0'
+    return mat_erose
+
+
+def dilatation(image, size):
+    mat = seuillage_automatique(image)
+    mat_dilate = seuillage_automatique(image)
+    for c in range(0, 3):
+        for i in range(int(size / 2), len(mat) - int(size / 2)):
+            for j in range(int(size / 2), len(mat[0]) - int(size / 2)):
+                for k in range(int(-size / 2), int(size / 2) + 1):
+                    for z in range(int(-size / 2), int(size / 2) + 1):
+                        if mat[i + k][j + z][c] == '255':
+                            mat_dilate[i][j][c] = '255'
+    return mat_dilate
+
+
+def ouverture(image, size):
+    mat1 = erosion(image, size)
+    ecrire("temp_morphology.ppm", mat1)
+    mat2 = dilatation("temp_morphology.ppm", size)
+    return mat2
+
+
+def fermeture(image, size):
+    mat1 = dilatation(image, size)
+    ecrire("temp_morphology.ppm", mat1)
+    mat2 = erosion("temp_morphology.ppm", size)
+    return mat2
+
+
 '''
 chat_mat = lire('chat.pgm')
 print(chat_mat)
@@ -413,7 +456,6 @@ ecrire("chat_new.pgm", chat_mat)
 print(moy("chat.pgm"))
 print(ecart_type("chat.pgm"))
 '''
-print(seuillage_automatique("peppers.ppm"))
 '''
 print(histogrammeCumul("chat.pgm"))
 print(probabilities("chat.pgm"))
@@ -445,7 +487,7 @@ class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
 
-    def __init__(self, picture, popup, root, p, x, console, m, e, **kwargs):
+    def __init__(self, picture, popup, root, plot, x, console, moyenne, ecart, eh, **kwargs):
         super(LoadDialog, self).__init__(**kwargs)
         self.box = BoxLayout(orientation="vertical", size=root.size, pos=root.pos, padding=(150, 0, 0, 70))
         self.add_widget(self.box)
@@ -454,11 +496,9 @@ class LoadDialog(FloatLayout):
         self.button_submit = Button(text="OK", size_hint=(None, None), size=(1064, 50))
 
         def recalculate_characteristics():
+            console.clear_widgets()
             moyenne = Label(text=("Moyenne : " + str(moy(picture.source))), size_hint=(1, None), height=50)
             ecart = Label(text=("Ecart Type : " + str(ecart_type(picture.source))), size_hint=(1, None), height=50)
-            console.remove_widget(m)
-            console.remove_widget(e)
-            console.remove_widget(p)
             console.add_widget(moyenne)
             console.add_widget(ecart)
             pic_type = str(picture.source).split('.')[len(str(picture.source).split('.')) - 1]
@@ -476,6 +516,7 @@ class LoadDialog(FloatLayout):
                 plot = FigureCanvasKivyAgg(plt.gcf())
                 console.add_widget(plot)
                 plt.legend()
+            console.add_widget(eh)
 
         def load_file(instance):
             picture.source = file_chooser.selection[0]
@@ -501,10 +542,10 @@ class Root(FloatLayout):
     def dismiss_popup(self):
         self._popup.dismiss()
 
-    def show_load(self, picture, plot, x, console, moyenne, ecart):
+    def show_load(self, picture, pl, x, cnsl, moyn, ec, egalisation):
         self._popup = Popup(title="Load File", size_hint=(0.9, 0.9))
         content = LoadDialog(load=self.load, cancel=self.dismiss_popup, picture=picture, popup=self._popup, root=self,
-                             p=plot, x=x, console=console, m=moyenne, e=ecart)
+                             plot=pl, x=x, console=cnsl, moyenne=moyn, ecart=ec, eh=egalisation)
         self._popup.content = content
         self._popup.open()
 
@@ -574,32 +615,36 @@ class Grid(BoxLayout):
         self.linearTransform = BoxLayout(orientation="vertical")
         btn_lt = Button(text="Transformation Linéaire")
         btn_lt.bind(on_press=LT)
-        box_lt = BoxLayout(orientation="horizontal", spacing=15)
-        box_lt_pt1 = BoxLayout(orientation="horizontal", padding=20, spacing=7.5)
-        box_lt_pt2 = BoxLayout(orientation="horizontal", padding=20, spacing=7.5)
+        box_lt = BoxLayout(orientation="horizontal", padding=(7, 0, 7, 0), spacing=4)
+        box_lt_pt1 = BoxLayout(orientation="horizontal", padding=(0, 18, 0, 18))
+        box_lt_pt2 = BoxLayout(orientation="horizontal", padding=(0, 18, 0, 18))
         in_1 = TextInput(input_filter="int")
         in_2 = TextInput(input_filter="int")
         in_3 = TextInput(input_filter="int")
         in_4 = TextInput(input_filter="int")
+        box_lt_pt1.add_widget(Label(text="(x1,y1) : ", size=(0.5, 0.5)))
         box_lt_pt1.add_widget(in_1)
         box_lt_pt1.add_widget(in_2)
+        box_lt_pt2.add_widget(Label(text="(x2,y2) : ", size=(0.5, 0.5)))
         box_lt_pt2.add_widget(in_3)
         box_lt_pt2.add_widget(in_4)
         box_lt.add_widget(box_lt_pt1)
         box_lt.add_widget(box_lt_pt2)
         self.linearTransform.add_widget(btn_lt)
         self.linearTransform.add_widget(box_lt)
-        self.egal_hist = Button(text="Egalisation d'Histogramme")
+        self.egal_hist = BoxLayout(size_hint=(1, 0.2), padding=(50, 10, 50, 10))
+        egal_hist_button = Button(text="Egalisation d'Histogramme")
+        self.egal_hist.add_widget(egal_hist_button)
 
         def egalisation_hist(instance):
-            self.he = Popup(title="Egalisation d'Histogramme", size_hint=(0.7, 0.5))
-            content = BoxLayout(orientation="vertical")
+            self.he = Popup(title="Egalisation d'Histogramme", size_hint=(0.5, 0.7))
+            content = BoxLayout(orientation="vertical",padding=(50,20,50,20),spacing=10)
             plt.clf()
             plt.plot(x, histogramme_egalisation(self.picture.source), color="red", label="Histogramme Egalisé")
             plt.legend()
             self.hist_eg_graph = FigureCanvasKivyAgg(plt.gcf())
             content.add_widget(self.hist_eg_graph)
-            exit_button = Button(text="Exit")
+            exit_button = Button(text="Exit",size_hint=(1,0.2))
 
             def dismiss(instance):
                 self.he.dismiss()
@@ -609,18 +654,26 @@ class Grid(BoxLayout):
             self.he.content = content
             self.he.open()
 
-        self.egal_hist.bind(on_press=egalisation_hist)
+        egal_hist_button.bind(on_press=egalisation_hist)
         self.filter = BoxLayout(orientation="vertical")
+        filter_button_box = BoxLayout(orientation="horizontal")
         filter_button = Button(text="Filter")
+        filter_button_box.add_widget(filter_button)
+        bruit_button = Button(text="Salt & Pepper")
+        filter_button_box.add_widget(bruit_button)
         self.original = ""
 
         def apply_filter(instance):
-            self.original = self.picture.source
+            self.original = self.picture.source if self.original == "" else self.original
             self.filter_pop_up = Popup(title="Filter Size", size_hint=(0.5, 0.5))
             content = BoxLayout(orientation="vertical")
+            filter_size_box = BoxLayout(orientation="vertical", padding=(200, 40, 200, 40))
+            size_label = Label(text="Size")
             filter_size = TextInput(input_filter="int")
-            content.add_widget(filter_size)
-            button_set = BoxLayout(orientation="horizontal")
+            filter_size_box.add_widget(size_label)
+            filter_size_box.add_widget(filter_size)
+            content.add_widget(filter_size_box)
+            button_set = BoxLayout(orientation="horizontal",padding=(50,50,50,50))
 
             filter_moyenneur = Button(text="Moyenneur")
             filter_median = Button(text="Median")
@@ -629,10 +682,10 @@ class Grid(BoxLayout):
 
             def open_filter(instance):
                 self.filter_input = Popup(title="Filter", size_hint=(0.5, 0.5))
-                content = BoxLayout(orientation="vertical")
+                content = BoxLayout(orientation="vertical", padding=(100,25,100,25), spacing=20)
                 inputs = [[TextInput()] * int(filter_size.text)] * int(filter_size.text)
                 for i in range(0, int(filter_size.text)):
-                    line = BoxLayout(orientation="horizontal")
+                    line = BoxLayout(orientation="horizontal", spacing=20)
                     for j in range(0, int(filter_size.text)):
                         inputs[i][j] = TextInput(input_filter="float")
                         line.add_widget(inputs[i][j])
@@ -649,10 +702,11 @@ class Grid(BoxLayout):
                     self.picture.reload()
                     self.filter_input.dismiss()
                     self.filter_pop_up.dismiss()
-                    self.filter.remove_widget(snr)
-                    s = Label(
+                    self.filter.clear_widgets()
+                    self.filter.add_widget(filter_button_box)
+                    snr = Label(
                         text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
-                    self.filter.add_widget(s)
+                    self.filter.add_widget(snr)
 
                 validate_filter_input.bind(on_press=calculate_filtered_image)
                 content.add_widget(validate_filter_input)
@@ -664,27 +718,30 @@ class Grid(BoxLayout):
                 self.picture.source = "temp_filtered.pgm"
                 self.picture.reload()
                 self.filter_pop_up.dismiss()
-                self.filter.remove_widget(snr)
-                s = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
-                self.filter.add_widget(s)
+                self.filter.clear_widgets()
+                self.filter.add_widget(filter_button_box)
+                snr = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                self.filter.add_widget(snr)
 
             def apply_median(instance):
                 ecrire("temp_filtered.pgm", median(int(filter_size.text), self.picture.source))
                 self.picture.source = "temp_filtered.pgm"
                 self.picture.reload()
                 self.filter_pop_up.dismiss()
-                self.filter.remove_widget(snr)
-                s = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
-                self.filter.add_widget(s)
+                self.filter.clear_widgets()
+                self.filter.add_widget(filter_button_box)
+                snr = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                self.filter.add_widget(snr)
 
             def apply_rehausse(instance):
                 ecrire("temp_filtered.pgm", rehausser_contours(self.picture.source))
                 self.picture.source = "temp_filtered.pgm"
                 self.picture.reload()
                 self.filter_pop_up.dismiss()
-                self.filter.remove_widget(snr)
-                s = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
-                self.filter.add_widget(s)
+                self.filter.clear_widgets()
+                self.filter.add_widget(filter_button_box)
+                snr = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
+                self.filter.add_widget(snr)
 
             filter_moyenneur.bind(on_press=apply_moyenneur)
             filter_median.bind(on_press=apply_median)
@@ -698,32 +755,81 @@ class Grid(BoxLayout):
             self.filter_pop_up.content = content
             self.filter_pop_up.open()
 
+        def apply_bruit(instance):
+            ecrire("temp_filter.pgm", bruit(self.picture.source))
+            self.picture.source = "temp_filter.pgm"
+            self.picture.reload()
+
         filter_button.bind(on_press=apply_filter)
+        bruit_button.bind(on_press=apply_bruit)
         snr = Label(text="SNR : " + ("" if self.original == "" else str(SNR(self.original, "temp_filtered.pgm"))))
-        self.filter.add_widget(filter_button)
+        self.filter.add_widget(filter_button_box)
         self.filter.add_widget(snr)
 
         self.seuillage = BoxLayout(orientation="vertical")
         seuillage_button_set = BoxLayout(orientation="horizontal")
-        seuillage_button = Button(text="Seuillage Manuel")
+        seuillage_button = Button(text="Seuillage Manuel", size_hint=(None, 1), width=200)
         seuillage_et_button = Button(text="ET")
         seuillage_ou_button = Button(text="OU")
         seuillage_button_set.add_widget(seuillage_button)
         seuillage_button_set.add_widget(seuillage_et_button)
         seuillage_button_set.add_widget(seuillage_ou_button)
-        seuillage_input = BoxLayout(orientation="horizontal")
+        seuillage_input = BoxLayout(orientation="horizontal", padding=(10, 18, 10, 18), spacing=5)
         s_in_red = TextInput(input_filter="int")
         s_in_green = TextInput(input_filter="int")
         s_in_blue = TextInput(input_filter="int")
-        seuillage_input.add_widget(Label(text="Red : "))
+        seuillage_input.add_widget(Label(text="Red :"))
         seuillage_input.add_widget(s_in_red)
-        seuillage_input.add_widget(Label(text="Green : "))
+        seuillage_input.add_widget(Label(text="Green :"))
         seuillage_input.add_widget(s_in_green)
-        seuillage_input.add_widget(Label(text="Blue : "))
+        seuillage_input.add_widget(Label(text="Blue :"))
         seuillage_input.add_widget(s_in_blue)
 
+        self.last_section_top = BoxLayout(orientation="vertical")
+        self.erosion_and_sisters = BoxLayout(orientation="horizontal")
+
+        erosion_btn = Button(text="E")
+        self.erosion_and_sisters.add_widget(erosion_btn)
+        dilate_btn = Button(text="D")
+        self.erosion_and_sisters.add_widget(dilate_btn)
+        ouverture_btn = Button(text="O")
+        self.erosion_and_sisters.add_widget(ouverture_btn)
+        fermeture_btn = Button(text="F")
+        self.erosion_and_sisters.add_widget(fermeture_btn)
+        size_box = BoxLayout(orientation="vertical", padding=(5, 5, 5, 5))
+        size_l = Label(text="Size")
+        size_e = TextInput(input_filter="int")
+        size_box.add_widget(size_l)
+        size_box.add_widget(size_e)
+        self.erosion_and_sisters.add_widget(size_box)
+
+        def apply_erosion(instance):
+            ecrire("temp_morphology.ppm", erosion(self.picture.source, int(size_e.text)))
+            self.picture.source = "temp_morphology.ppm"
+            self.picture.reload()
+
+        def apply_dilatation(instance):
+            ecrire("temp_morphology.ppm", dilatation(self.picture.source, int(size_e.text)))
+            self.picture.source = "temp_morphology.ppm"
+            self.picture.reload()
+
+        def apply_ouverture(instance):
+            ecrire("temp_morphology.ppm", ouverture(self.picture.source, int(size_e.text)))
+            self.picture.source = "temp_morphology.ppm"
+            self.picture.reload()
+
+        def apply_fermeture(instance):
+            ecrire("temp_morphology.ppm", fermeture(self.picture.source, int(size_e.text)))
+            self.picture.source = "temp_morphology.ppm"
+            self.picture.reload()
+
+        erosion_btn.bind(on_press=apply_erosion)
+        dilate_btn.bind(on_press=apply_dilatation)
+        ouverture_btn.bind(on_press=apply_ouverture)
+        fermeture_btn.bind(on_press=apply_fermeture)
+
         self.seuillage_auto = BoxLayout(orientation="horizontal")
-        seuillage_auto_button = Button(text="Seuillage Automatique")
+        seuillage_auto_button = Button(text="Seuillage Automatique", size_hint=(None, 1), width=205)
         seuillage_auto_et_button = Button(text="ET")
         seuillage_auto_ou_button = Button(text="OU")
         self.seuillage_auto.add_widget(seuillage_auto_button)
@@ -773,11 +879,13 @@ class Grid(BoxLayout):
         seuillage_auto_et_button.bind(on_press=apply_seuillage_auto_et)
         seuillage_auto_ou_button.bind(on_press=apply_seuillage_auto_ou)
 
+        self.last_section_top.add_widget(self.seuillage_auto)
+        self.last_section_top.add_widget(self.erosion_and_sisters)
+
         self.layoutTop.add_widget(self.linearTransform)
-        self.layoutTop.add_widget(self.egal_hist)
         self.layoutTop.add_widget(self.filter)
         self.layoutTop.add_widget(self.seuillage)
-        self.layoutTop.add_widget(self.seuillage_auto)
+        self.layoutTop.add_widget(self.last_section_top)
 
         plt.xlabel('Niveaux', fontsize=18)
         plt.ylabel('H(n)', fontsize=16)
@@ -791,14 +899,41 @@ class Grid(BoxLayout):
         self.console.add_widget(ecart)
         self.plot = FigureCanvasKivyAgg(plt.gcf())
         self.console.add_widget(self.plot)
+        self.console.add_widget(self.egal_hist)
 
         def import_file(instance):
             root = Root()
-            root.show_load(picture=self.picture, plot=self.plot, x=x, console=self.console, moyenne=moyenne,
-                           ecart=ecart)
+            root.show_load(picture=self.picture, pl=self.plot, x=x, cnsl=self.console, moyn=moyenne,
+                           ec=ecart, egalisation=self.egal_hist)
 
-        self.importFile = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1))
-        self.importFile.bind(on_press=import_file)
+        def save_file(instance):
+            self.save_pop_up = Popup(title="Save As .. ",size_hint=(None, None), size=(1000, 600))
+            content = BoxLayout(orientation="vertical",padding=(50,50,50,50),spacing=20)
+            file_chooser = FileChooserIconView()
+            name_input = TextInput(size_hint=(1,0.2))
+            save_btn = Button(text="Save",size_hint=(1,0.2))
+
+            def save(instance):
+                path = file_chooser.path+"\\"+name_input.text
+                print(path)
+                final_image_matrix = lire(self.picture.source)
+                ecrire(path, final_image_matrix)
+                self.save_pop_up.dismiss()
+
+            save_btn.bind(on_press=save)
+            content.add_widget(file_chooser)
+            content.add_widget(name_input)
+            content.add_widget(save_btn)
+            self.save_pop_up.content = content
+            self.save_pop_up.open()
+
+        self.importFile = BoxLayout(orientation="horizontal")
+        import_file_btn = Button(text="Import File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1))
+        import_file_btn.bind(on_press=import_file)
+        save_file_btn = Button(text="Save File", background_color=(0.18039215686, 0.76862745098, 0.71372549019, 1))
+        save_file_btn.bind(on_press=save_file)
+        self.importFile.add_widget(import_file_btn)
+        self.importFile.add_widget(save_file_btn)
         self.layoutMiddle = BoxLayout(orientation="horizontal", size_hint=(1, None), height=500)
         self.layoutMiddle.add_widget(self.console)
         self.layoutMiddle.add_widget(self.picture)
